@@ -1,7 +1,13 @@
 #!/bin/bash
 
-# Caminho para o diretório raiz do seu projeto dotfiles
-DOTFILES_DIR="/path/to/dotfiles"
+# Obtendo o caminho para o diretório raiz do seu projeto dotfiles da variável de ambiente
+DOTFILES_DIR="${DOTFILES_DIR_ENV:-}"
+
+# Verificando se a variável de ambiente está definida
+if [[ -z $DOTFILES_DIR ]]; then
+    echo "Error: DOTFILES_DIR_ENV is not set." >&2
+    exit 1
+fi
 
 # Função para criar symlinks a partir do arquivo de mapeamento
 create_symlinks() {
