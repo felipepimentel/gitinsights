@@ -1,0 +1,53 @@
+#!/bin/zsh
+
+# Verifique se a variável de ambiente está definida
+if [[ -z "$DOTFILES_DIR_ENV" ]]; then
+    echo "Error: DOTFILES_DIR_ENV is not set." >&2
+    exit 1
+fi
+
+# Função para criar symlinks a partir de um arquivo de mapeamento
+create_symlinks() {
+    local dots_file="$1"
+    local -A mapping
+    local name source target type
+
+    while IFS='=' read -r key value; do
+        if [[ "$key" == "["* ]]; then
+            if [[ -n "$name" ]]; then
+                if [[ "$type" == "symlink" ]]; then
+                    if [[ -e "$target" ]]; then
+                        if [[ -L "$target" ]]; then
+                            echo "Symlink already exists: $target -> $(readlink "$target")"
+                        else
+                            mv "$target" "$target.bak"
+                            echo "Moved existing file to $target.bak"
+                        fi
+                    fi
+                    ln -s "$source" "$target"
+                    echo "Created symlink: $source -> $target"
+                fi
+            fi
+            name="${key:1:-1}"
+        else
+            mapping[$key]=$value
+            if [[ "$key" == "type" ]]; then
+                type=$value
+            elif [[ "$key" == "source" ]]; then
+                source=$value
+            elif [[ "$key" == "target" ]]; then
+                target=$value
+            fi
+        fi
+    done < "$dots_file"
+}
+
+# Iterando através de cada diretório no projeto dotfiles
+for dir in "$DOTFILES_DIR_ENV"/*; do
+    if [[ -d "$dir" ]]; then
+        local dots_file="$dir/dots"
+        if [[ -f "$dots_file" ]]; then
+            create_symlinks "$dots_file"
+        fi
+    fi
+done
