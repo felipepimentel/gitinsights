@@ -1,54 +1,92 @@
-# Função para criar symlinks a partir de um arquivo de mapeamento
-create_symlinks() {
-    local dots_file="$1"
-    local name
+#!/bin/bash
 
-    while IFS= read -r line; do
-        if [[ "$line" == "["* ]]; then
-            # Processar o nome do symlink
-            name="${line:1:-1}"
-        elif [[ "$line" == *"="* ]]; then
-            # Dividir a linha em chave e valor
-            IFS='=' read -r key value <<< "$line"
-            # Expandir variáveis de ambiente no valor
-            value=$(echo "$value" | envsubst)
-            # Construir a chave do array associativo
-            local key_name="${name}_${key}"
-            # Armazenar o valor no array associativo
-            mappings["$key_name"]=$value
-        fi
-    done < "$dots_file"
+# Caminho para o diretório de módulos
+MODULES_DIR="$HOME/.zsh/modules"
 
-    # Processar os mapeamentos
-    for key in "${!mappings[@]}"; do
-        if [[ "$key" =~ _type$ ]]; then
-            local name="${key%_type}"
-            local type="${mappings[$key]}"
-            local source="${mappings[${name}_source]}"
-            local target="${mappings[${name}_target]}"
+# Função para processar arquivos de mapeamento
+process_mapping_file() {
+    local mapping_file="$1"
+    local name type module_dir
+    while IFS='=' read -r key value; do
+        if [[ "$key" == "[module]" ]]; then
+            if [[ -n "$name" && "$type" == "autoload" ]]; then
+                # Definir a variável de ambiente para o módulo
+                export "$(echo "$name" | tr '[:lower:]' '[:upper:]')_DIR=$module_dir"
 
-            if [[ "$type" == "symlink" ]]; then
-                # Verificar se o symlink já existe e aponta para a fonte correta
-                if [[ -L "$target" && $(readlink "$target") == "$source" ]]; then
-                    echo "Symlink already exists: $target -> $source"
-                else
-                    # Se o target é um arquivo ou diretório, mas não um symlink, faça backup e crie o symlink
-                    if [[ -e "$target" && ! -L "$target" ]]; then
-                        mv "$target" "$target.bak"
-                        echo "Moved existing file to $target.bak"
+                # Carregar aliases, funções e definições de variáveis
+                for config_file in "$module_dir"/{aliases,functions,variables}.zsh; do
+                    if [[ -f "$config_file" ]]; then
+                        source "$config_file"
                     fi
-                    ln -s "$source" "$target"
-                    echo "Created symlink: $source -> $target"
-                fi
+                done
 
-                # Verificar se o proprietário do symlink é o usuário corrente
-                if [[ $(stat -c '%U' "$target") == "$SUDO_USER" ]]; then
-                    echo "Owner of $target is already $SUDO_USER"
-                else
-                    sudo chown "$SUDO_USER":"$SUDO_USER" "$target"
-                    echo "Set owner of $target to $SUDO_USER"
-                fi
+                # Criar symlinks para os arquivos no diretório System
+                local system_dir="$module_dir/System"
+                if [[ -d "$system_dir" ]]; then
+                    # Use find para iterar sobre todos os arquivos e diretórios dentro de $system_dir
+                    find "$system_dir" -type f | while read -r file; do
+                        # Crie um caminho de destino removendo o prefix
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#!/bin/bash
+
+# Caminho para o diretório de módulos
+MODULES_DIR="$HOME/.zsh/modules"
+
+# Função para processar arquivos de mapeamento
+process_mapping_file() {
+    local mapping_file="$1"
+    local name type module_dir
+    while IFS='=' read -r key value; do
+        if [[ "$key" == "[module]" ]]; then
+            if [[ -n "$name" && "$type" == "autoload" ]]; then
+                # Definir a variável de ambiente para o módulo
+                export "$(echo "$name" | tr '[:lower:]' '[:upper:]')_DIR=$module_dir"
+
+                # Carregar aliases, funções e definições de variáveis
+                for config_file in "$module_dir"/{aliases,functions,variables}.zsh; do
+                    if [[ -f "$config_file" ]]; then
+                        source "$config_file"
+                    fi
+                done
             fi
+            name=""  # Reset name for next module
+            type=""  # Reset type for next module
+        elif [[ "$key" == "name" ]]; then
+            name="$value"
+            module_dir="$MODULES_DIR/$name"
+        elif [[ "$key" == "type" ]]; then
+            type="$value"
         fi
-    done
+    done < "$mapping_file"
 }
+
+# Iterar através de cada diretório no projeto dotfiles
+for dir in "$MODULES_DIR"/*; do
+    if [[ -d "$dir" ]]; then
+        local mapping_file="$dir/mapping"
+        if [[ -f "$mapping_file" ]]; then
+            process_mapping_file "$mapping_file"
+        fi
+    fi
+done
