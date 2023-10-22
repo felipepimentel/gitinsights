@@ -1,79 +1,71 @@
 #!/bin/bash
 
 # Verificar se a variável de ambiente está definida
-if [[ -z "$ZSH_MODULES_DIRS" ]]; then
-    echo "Error: ZSH_MODULES_DIRS is not set." >&2
+if [[ -z "$DOTFILES" ]]; then
+    echo "Error: DOTFILES is not set." >&2
     exit 1
 fi
 
-# ----------------------
-# Bloco 1: Geração do Mapeamento
-# ----------------------
+# Função para processar o arquivo dmodule
+process_dmodule() {
+    local module_dir="$1"
+    local dmodule_file="$module_dir/dmodule"
+    local name type module_uppercase_name
 
-# Função para ler o arquivo de mapeamento e preencher o array 'mappings'
-generate_mapping() {
-    local mapping_file="$1"
-    declare -A mappings
+    # Ler informações do arquivo dmodule
     while IFS='=' read -r key value; do
-        mappings["$key"]="$value"
-    done < "$mapping_file"
-    echo "${mappings[@]}"
-}
+        [[ "$key" == "name" ]] && name="$value"
+        [[ "$key" == "type" ]] && type="$value"
+    done < "$dmodule_file"
 
-# ----------------------
-# Bloco 2: Processamento do Mapeamento
-# ----------------------
-
-# Função para processar o mapeamento e executar ações correspondentes
-process_mapping() {
-    local -n mappings_ref="$1"
-    local name=${mappings_ref[name]}
-    local type=${mappings_ref[type]}
-    local module_dir="$ZSH_MODULES_DIRS/$name"
-
+    # Verificar se o tipo é 'autoload'
     if [[ "$type" == "autoload" ]]; then
-        export "$(echo "$name" | tr '[:lower:]' '[:upper:]')_DIR=$module_dir"
+        module_uppercase_name=$(echo "$name" | tr '[:lower:]' '[:upper:]')
+        export "${module_uppercase_name}_DIR=$module_dir"
 
-        for config_file in "$module_dir"/{aliases,functions,variables}.zsh; do
-            [[ -f "$config_file" ]] && source "$config_file"
-        done
+        # Processar diretório 'System' para symlinks
+        if [[ -d "$module_dir/System" ]]; then
+            create_symlinks "$module_dir/System"
+        fi
 
-        local system_dir="$module_dir/System"
-        [[ -d "$system_dir" ]] && create_symlinks "$system_dir"
+        # Executar arquivo install.sh se existir
+        if [[ -f "$module_dir/install.sh" ]]; then
+            bash "$module_dir/install.sh"
+        fi
+
+        # Carregar arquivos zsh se o diretório existir
+        if [[ -d "$module_dir/zsh" ]]; then
+            load_zsh_files "$module_dir/zsh"
+        fi
     fi
 }
 
-# Função auxiliar para criar symlinks
+# Função para criar symlinks baseado no diretório 'System'
 create_symlinks() {
     local system_dir="$1"
     find "$system_dir" -type f | while read -r file; do
-        local target="${file#$system_dir}"
+        local target="$HOME/${file#$system_dir}"
         ln -sfn "$file" "$target"
         echo "Created symlink: $file -> $target"
     done
 }
 
-# ----------------------
-# Bloco 3: Busca e Processamento dos Arquivos de Módulo
-# ----------------------
-
-# Função para iterar sobre os diretórios de módulos e processar cada arquivo de mapeamento
-process_module_files() {
-    local modules_dir="$1"
-    for dir in "$modules_dir"/*; do
-        if [[ -d "$dir" ]]; then
-            local mapping_file="$dir/mapping"
-            if [[ -f "$mapping_file" ]]; then
-                local mappings
-                mappings=$(generate_mapping "$mapping_file")
-                process_mapping mappings
-            fi
-        fi
+# Função para carregar arquivos zsh
+load_zsh_files() {
+    local zsh_dir="$1"
+    for zsh_file in "$zsh_dir"/*.zsh; do
+        [[ -f "$zsh_file" ]] && source "$zsh_file"
     done
 }
 
-# Iterar através de cada diretório especificado em ZSH_MODULES_DIRS
-IFS=':' read -ra MODULES_DIRS <<< "$ZSH_MODULES_DIRS"
-for MODULES_DIR in "${MODULES_DIRS[@]}"; do
-    process_module_files "$MODULES_DIR"
-done
+# Função principal para iterar sobre os diretórios em busca de arquivos dmodule
+process_dotfiles() {
+    local dotfiles_dir="$1"
+    find "$dotfiles_dir" -type f -name "dmodule" | while read -r dmodule_file; do
+        local module_dir=$(dirname "$dmodule_file")
+        process_dmodule "$module_dir"
+    done
+}
+
+# Chamada da função principal
+process_dotfiles "$DOTFILES"
