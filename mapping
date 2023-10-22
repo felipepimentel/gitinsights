@@ -1,14 +1,3 @@
-#!/bin/bash
-
-# Verifique se a variável de ambiente está definida
-if [[ -z "$DOTFILES_DIR_ENV" ]]; then
-    echo "Error: DOTFILES_DIR_ENV is not set." >&2
-    exit 1
-fi
-
-# Declarar um array associativo
-declare -A mappings
-
 # Função para criar symlinks a partir de um arquivo de mapeamento
 create_symlinks() {
     local dots_file="$1"
@@ -21,6 +10,8 @@ create_symlinks() {
         elif [[ "$line" == *"="* ]]; then
             # Dividir a linha em chave e valor
             IFS='=' read -r key value <<< "$line"
+            # Expandir variáveis de ambiente no valor
+            value=$(echo "$value" | envsubst)
             # Construir a chave do array associativo
             local key_name="${name}_${key}"
             # Armazenar o valor no array associativo
@@ -37,27 +28,27 @@ create_symlinks() {
             local target="${mappings[${name}_target]}"
 
             if [[ "$type" == "symlink" ]]; then
-                if [[ -e "$target" ]]; then
-                    if [[ -L "$target" ]]; then
-                        echo "Symlink already exists: $target -> $(readlink "$target")"
-                    else
+                # Verificar se o symlink já existe e aponta para a fonte correta
+                if [[ -L "$target" && $(readlink "$target") == "$source" ]]; then
+                    echo "Symlink already exists: $target -> $source"
+                else
+                    # Se o target é um arquivo ou diretório, mas não um symlink, faça backup e crie o symlink
+                    if [[ -e "$target" && ! -L "$target" ]]; then
                         mv "$target" "$target.bak"
                         echo "Moved existing file to $target.bak"
                     fi
+                    ln -s "$source" "$target"
+                    echo "Created symlink: $source -> $target"
                 fi
-                ln -s "$source" "$target"
-                echo "Created symlink: $source -> $target"
+
+                # Verificar se o proprietário do symlink é o usuário corrente
+                if [[ $(stat -c '%U' "$target") == "$SUDO_USER" ]]; then
+                    echo "Owner of $target is already $SUDO_USER"
+                else
+                    sudo chown "$SUDO_USER":"$SUDO_USER" "$target"
+                    echo "Set owner of $target to $SUDO_USER"
+                fi
             fi
         fi
     done
 }
-
-# Iterando através de cada diretório no projeto dotfiles
-for dir in "$DOTFILES_DIR_ENV"/*; do
-    if [[ -d "$dir" ]]; then
-        local dots_file="$dir/dots"
-        if [[ -f "$dots_file" ]]; then
-            create_symlinks "$dots_file"
-        fi
-    fi
-done
