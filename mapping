@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/bash
 
 # Verifique se a variável de ambiente está definida
 if [[ -z "$DOTFILES_DIR_ENV" ]]; then
@@ -6,40 +6,50 @@ if [[ -z "$DOTFILES_DIR_ENV" ]]; then
     exit 1
 fi
 
+# Declarar um array associativo
+declare -A mappings
+
 # Função para criar symlinks a partir de um arquivo de mapeamento
 create_symlinks() {
     local dots_file="$1"
-    local -A mapping
-    local name source target type
+    local name
 
-    while IFS='=' read -r key value; do
-        if [[ "$key" == "["* ]]; then
-            if [[ -n "$name" ]]; then
-                if [[ "$type" == "symlink" ]]; then
-                    if [[ -e "$target" ]]; then
-                        if [[ -L "$target" ]]; then
-                            echo "Symlink already exists: $target -> $(readlink "$target")"
-                        else
-                            mv "$target" "$target.bak"
-                            echo "Moved existing file to $target.bak"
-                        fi
-                    fi
-                    ln -s "$source" "$target"
-                    echo "Created symlink: $source -> $target"
-                fi
-            fi
-            name="${key:1:-1}"
-        else
-            mapping[$key]=$value
-            if [[ "$key" == "type" ]]; then
-                type=$value
-            elif [[ "$key" == "source" ]]; then
-                source=$value
-            elif [[ "$key" == "target" ]]; then
-                target=$value
-            fi
+    while IFS= read -r line; do
+        if [[ "$line" == "["* ]]; then
+            # Processar o nome do symlink
+            name="${line:1:-1}"
+        elif [[ "$line" == *"="* ]]; then
+            # Dividir a linha em chave e valor
+            IFS='=' read -r key value <<< "$line"
+            # Construir a chave do array associativo
+            local key_name="${name}_${key}"
+            # Armazenar o valor no array associativo
+            mappings["$key_name"]=$value
         fi
     done < "$dots_file"
+
+    # Processar os mapeamentos
+    for key in "${!mappings[@]}"; do
+        if [[ "$key" =~ _type$ ]]; then
+            local name="${key%_type}"
+            local type="${mappings[$key]}"
+            local source="${mappings[${name}_source]}"
+            local target="${mappings[${name}_target]}"
+
+            if [[ "$type" == "symlink" ]]; then
+                if [[ -e "$target" ]]; then
+                    if [[ -L "$target" ]]; then
+                        echo "Symlink already exists: $target -> $(readlink "$target")"
+                    else
+                        mv "$target" "$target.bak"
+                        echo "Moved existing file to $target.bak"
+                    fi
+                fi
+                ln -s "$source" "$target"
+                echo "Created symlink: $source -> $target"
+            fi
+        fi
+    done
 }
 
 # Iterando através de cada diretório no projeto dotfiles
