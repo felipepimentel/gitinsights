@@ -1,71 +1,18 @@
-#!/bin/bash
-
-# Verificar se a variável de ambiente está definida
-if [[ -z "$DOTFILES" ]]; then
-    echo "Error: DOTFILES is not set." >&2
-    exit 1
-fi
-
-# Função para processar o arquivo dmodule
-process_dmodule() {
-    local module_dir="$1"
-    local dmodule_file="$module_dir/dmodule"
-    local name type module_uppercase_name
-
-    # Ler informações do arquivo dmodule
-    while IFS='=' read -r key value; do
-        [[ "$key" == "name" ]] && name="$value"
-        [[ "$key" == "type" ]] && type="$value"
-    done < "$dmodule_file"
-
-    # Verificar se o tipo é 'autoload'
-    if [[ "$type" == "autoload" ]]; then
-        module_uppercase_name=$(echo "$name" | tr '[:lower:]' '[:upper:]')
-        export "${module_uppercase_name}_DIR=$module_dir"
-
-        # Processar diretório 'System' para symlinks
-        if [[ -d "$module_dir/System" ]]; then
-            create_symlinks "$module_dir/System"
-        fi
-
-        # Executar arquivo install.sh se existir
-        if [[ -f "$module_dir/install.sh" ]]; then
-            bash "$module_dir/install.sh"
-        fi
-
-        # Carregar arquivos zsh se o diretório existir
-        if [[ -d "$module_dir/zsh" ]]; then
-            load_zsh_files "$module_dir/zsh"
-        fi
-    fi
-}
-
 # Função para criar symlinks baseado no diretório 'System'
 create_symlinks() {
     local system_dir="$1"
     find "$system_dir" -type f | while read -r file; do
         local target="$HOME/${file#$system_dir}"
+        # Verificar se o target já existe
+        if [[ -e "$target" ]]; then
+            # Se o target existir, criar um backup
+            mv "$target" "$target.bak"
+            echo "Backup created: $target -> $target.bak"
+        fi
+        # Criar o symlink
         ln -sfn "$file" "$target"
+        # Alterar o owner do symlink para o usuário corrente
+        sudo chown "$USER:$USER" "$target"
         echo "Created symlink: $file -> $target"
     done
 }
-
-# Função para carregar arquivos zsh
-load_zsh_files() {
-    local zsh_dir="$1"
-    for zsh_file in "$zsh_dir"/*.zsh; do
-        [[ -f "$zsh_file" ]] && source "$zsh_file"
-    done
-}
-
-# Função principal para iterar sobre os diretórios em busca de arquivos dmodule
-process_dotfiles() {
-    local dotfiles_dir="$1"
-    find "$dotfiles_dir" -type f -name "dmodule" | while read -r dmodule_file; do
-        local module_dir=$(dirname "$dmodule_file")
-        process_dmodule "$module_dir"
-    done
-}
-
-# Chamada da função principal
-process_dotfiles "$DOTFILES"
