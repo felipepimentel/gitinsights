@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Verifique se a variável de ambiente está definida
+# Verificar se a variável de ambiente está definida
 if [[ -z "$ZSH_MODULES_DIRS" ]]; then
     echo "Error: ZSH_MODULES_DIRS is not set." >&2
     exit 1
@@ -10,58 +10,63 @@ fi
 # Bloco 1: Geração do Mapeamento
 # ----------------------
 
-declare -A mappings
-
+# Função para ler o arquivo de mapeamento e preencher o array 'mappings'
 generate_mapping() {
     local mapping_file="$1"
+    declare -A mappings
     while IFS='=' read -r key value; do
         mappings["$key"]="$value"
     done < "$mapping_file"
+    echo "${mappings[@]}"
 }
 
 # ----------------------
 # Bloco 2: Processamento do Mapeamento
 # ----------------------
 
+# Função para processar o mapeamento e executar ações correspondentes
 process_mapping() {
-    local name type module_dir system_dir
-
-    name=${mappings[name]}
-    type=${mappings[type]}
-    module_dir="$ZSH_MODULES_DIRS/$name"
+    local -n mappings_ref="$1"
+    local name=${mappings_ref[name]}
+    local type=${mappings_ref[type]}
+    local module_dir="$ZSH_MODULES_DIRS/$name"
 
     if [[ "$type" == "autoload" ]]; then
         export "$(echo "$name" | tr '[:lower:]' '[:upper:]')_DIR=$module_dir"
 
         for config_file in "$module_dir"/{aliases,functions,variables}.zsh; do
-            if [[ -f "$config_file" ]]; then
-                source "$config_file"
-            fi
+            [[ -f "$config_file" ]] && source "$config_file"
         done
 
-        system_dir="$module_dir/System"
-        if [[ -d "$system_dir" ]]; then
-            find "$system_dir" -type f | while read -r file; do
-                target="${file#$system_dir}"
-                ln -sfn "$file" "$target"
-                echo "Created symlink: $file -> $target"
-            done
-        fi
+        local system_dir="$module_dir/System"
+        [[ -d "$system_dir" ]] && create_symlinks "$system_dir"
     fi
+}
+
+# Função auxiliar para criar symlinks
+create_symlinks() {
+    local system_dir="$1"
+    find "$system_dir" -type f | while read -r file; do
+        local target="${file#$system_dir}"
+        ln -sfn "$file" "$target"
+        echo "Created symlink: $file -> $target"
+    done
 }
 
 # ----------------------
 # Bloco 3: Busca e Processamento dos Arquivos de Módulo
 # ----------------------
 
+# Função para iterar sobre os diretórios de módulos e processar cada arquivo de mapeamento
 process_module_files() {
     local modules_dir="$1"
     for dir in "$modules_dir"/*; do
         if [[ -d "$dir" ]]; then
             local mapping_file="$dir/mapping"
             if [[ -f "$mapping_file" ]]; then
-                generate_mapping "$mapping_file"
-                process_mapping
+                local mappings
+                mappings=$(generate_mapping "$mapping_file")
+                process_mapping mappings
             fi
         fi
     done
