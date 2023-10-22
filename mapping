@@ -6,7 +6,7 @@ MODULES_DIR="$HOME/.zsh/modules"
 # Função para processar arquivos de mapeamento
 process_mapping_file() {
     local mapping_file="$1"
-    local name type module_dir
+    local name type module_dir system_dir
     while IFS='=' read -r key value; do
         if [[ "$key" == "[module]" ]]; then
             if [[ -n "$name" && "$type" == "autoload" ]]; then
@@ -20,55 +20,15 @@ process_mapping_file() {
                     fi
                 done
 
-                # Criar symlinks para os arquivos no diretório System
-                local system_dir="$module_dir/System"
+                # Verificar e processar a pasta System para symlinks
+                system_dir="$module_dir/System"
                 if [[ -d "$system_dir" ]]; then
-                    # Use find para iterar sobre todos os arquivos e diretórios dentro de $system_dir
                     find "$system_dir" -type f | while read -r file; do
-                        # Crie um caminho de destino removendo o prefix
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#!/bin/bash
-
-# Caminho para o diretório de módulos
-MODULES_DIR="$HOME/.zsh/modules"
-
-# Função para processar arquivos de mapeamento
-process_mapping_file() {
-    local mapping_file="$1"
-    local name type module_dir
-    while IFS='=' read -r key value; do
-        if [[ "$key" == "[module]" ]]; then
-            if [[ -n "$name" && "$type" == "autoload" ]]; then
-                # Definir a variável de ambiente para o módulo
-                export "$(echo "$name" | tr '[:lower:]' '[:upper:]')_DIR=$module_dir"
-
-                # Carregar aliases, funções e definições de variáveis
-                for config_file in "$module_dir"/{aliases,functions,variables}.zsh; do
-                    if [[ -f "$config_file" ]]; then
-                        source "$config_file"
-                    fi
-                done
+                        target="${file#$system_dir}"
+                        ln -sfn "$file" "$target"
+                        echo "Created symlink: $file -> $target"
+                    done
+                fi
             fi
             name=""  # Reset name for next module
             type=""  # Reset type for next module
