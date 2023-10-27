@@ -1,0 +1,30 @@
+from playwright.sync_api import sync_playwright
+
+def extract_table_data(page):
+    table_selector = 'table'  # Ajuste o seletor conforme necessário
+    row_headers = [header.innerText() for header in page.query_selector_all(f'{table_selector} tr th')]
+    col_headers = [header.innerText() for header in page.query_selector_all(f'{table_selector} tr td:first-child')]
+    data = {col_header: {} for col_header in col_headers[1:]}  # Exclui o primeiro header vazio
+
+    rows = page.query_selector_all(f'{table_selector} tr')[1:]  # Exclui a primeira linha de títulos
+    for i, row in enumerate(rows):
+        cells = row.query_selector_all('td')[1:]  # Exclui a primeira célula de título
+        for j, cell in enumerate(cells):
+            data[col_headers[j + 1]][row_headers[i + 1]] = cell.innerText()
+
+    return data
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+    page.goto('https://example.com/table-page')  # Ajuste a URL conforme necessário
+    
+    # Extraia os dados da tabela
+    table_data = extract_table_data(page)
+    
+    # Imprima os dados da tabela
+    for col_header, col_data in table_data.items():
+        for row_header, value in col_data.items():
+            print(f'{col_header}, {row_header}: {value}')
+    
+    browser.close()

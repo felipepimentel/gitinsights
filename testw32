@@ -1,0 +1,47 @@
+from playwright.sync_api import sync_playwright
+
+def extract_table_data(page):
+    table_data = page.evaluate('''() => {
+        const table = document.querySelector('table');  // Ajuste o seletor conforme necessário
+        const rows = table.rows;
+        let headers_col = [];  // Para armazenar os títulos da primeira coluna
+        let headers_row = [];  // Para armazenar os títulos da primeira linha
+        let data = {};
+
+        for (let j = 1; j < rows[0].cells.length; j++) {  // Começa com 1 para pular a célula de título vazia
+            headers_row.push(rows[0].cells[j].innerText);
+        }
+
+        for (let i = 1; i < rows.length; i++) {  // Começa com 1 para pular a linha de título
+            headers_col.push(rows[i].cells[0].innerText);
+        }
+
+        for (let i = 1; i < rows.length; i++) {  // Começa com 1 para pular a linha de título
+            for (let j = 1; j < rows[i].cells.length; j++) {  // Começa com 1 para pular a coluna de título
+                let col_header = headers_row[j - 1];
+                let row_header = headers_col[i - 1];
+                if (!data[col_header]) {
+                    data[col_header] = {};
+                }
+                data[col_header][row_header] = rows[i].cells[j].innerText;
+            }
+        }
+
+        return data;
+    }''')
+    return table_data
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+    page.goto('https://example.com/table-page')  # Ajuste a URL conforme necessário
+    
+    # Extraia os dados da tabela
+    table_data = extract_table_data(page)
+    
+    # Imprima os dados da tabela
+    for col_header, col_data in table_data.items():
+        for row_header, value in col_data.items():
+            print(f'{col_header}, {row_header}: {value}')
+    
+    browser.close()
