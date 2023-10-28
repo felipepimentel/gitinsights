@@ -7,34 +7,36 @@ async def main():
         page = await browser.new_page()
         await page.goto('http://seusite.com')
 
-        # Extração dos headers
-        headers = await page.query_selector_all('[automation-col]')
-        header_texts = []
-        for header in headers:
-            text = await header.eval_on_selector('span.title', 'el => el.textContent')
-            header_texts.append(text)
+        # Encontre todas as tabelas pela classe ou algum atributo distintivo
+        tabelas = await page.query_selector_all('div[custom-title][custom-id]')
+        
+        for tabela in tabelas:
+            categoria = await tabela.get_attribute('custom-title')
 
-        # Extração da sidebar
-        sidebars = await page.query_selector_all('[automation-row]')
-        sidebar_texts = []
-        for sidebar in sidebars:
-            text = await sidebar.eval_on_selector('span.title', 'el => el.textContent')
-            sidebar_texts.append(text)
+            # Extração de headers, sidebar e content como anteriormente
+            headers = await tabela.query_selector_all('[automation-col]')
+            sidebars = await tabela.query_selector_all('[automation-row]')
+            cells = await tabela.query_selector_all('[data-col][data-row]')
+            
+            # ... (processamento similar ao do código anterior)
+            
+            # Persistência no banco de dados
+            for header, sidebar, cell in zip(headers, sidebars, cells):
+                header_text = await header.inner_text()
+                sidebar_text = await sidebar.inner_text()
+                cell_text = await cell.inner_text()
+                
+                registro = Tabela(
+                    categoria=categoria,
+                    indicador=sidebar_text,
+                    data=header_text,
+                    valor=float(cell_text)  # Supondo que o valor é um float; ajuste conforme necessário
+                )
+                
+                session.add(registro)
 
-        # Extração do conteúdo
-        cells = await page.query_selector_all('[data-col][data-row]')
-        cell_values = []
-        for cell in cells:
-            text = await cell.inner_text()
-            cell_values.append({
-                'row': await cell.get_attribute('data-row'),
-                'col': await cell.get_attribute('data-col'),
-                'value': text
-            })
-
-        print('Headers:', header_texts)
-        print('Sidebar:', sidebar_texts)
-        print('Cell Values:', cell_values)
+            # Commit das alterações ao banco de dados
+            session.commit()
 
         await browser.close()
 
