@@ -1,32 +1,52 @@
 import os
 import shutil
 from datetime import datetime
+import time
 
-# Diretório que contém os screenshots
-root_dir = '/caminho/para/a/pasta/com/screenshots'
+# Defina o caminho para a pasta onde os screenshots estão armazenados
+source_directory = 'caminho/para/a/pasta/de/screenshots'
 
-# Formatos de arquivo a serem considerados como screenshots
-file_extensions = ['.png', '.jpg', '.jpeg']
+# Dicionário para converter número do mês no nome por extenso
+month_names = {
+    1: 'Janeiro', 2: 'Fevereiro', 3: 'Março',
+    4: 'Abril',   5: 'Maio',      6: 'Junho',
+    7: 'Julho',   8: 'Agosto',    9: 'Setembro',
+    10: 'Outubro',11: 'Novembro', 12: 'Dezembro'
+}
 
-def organize_screenshots(directory):
-    for subdir, dirs, files in os.walk(directory):
+def organize_screenshots(source_directory):
+    # Lista todos os arquivos e subdiretórios no diretório de origem
+    for root, dirs, files in os.walk(source_directory):
         for file in files:
-            # Checa se o arquivo é um screenshot
-            if any(file.lower().endswith(ext) for ext in file_extensions):
-                file_path = os.path.join(subdir, file)
+            try:
+                # Construa o caminho completo para o arquivo atual
+                file_path = os.path.join(root, file)
 
-                # Obter a data de criação do arquivo
-                creation_time = os.path.getctime(file_path)
-                date_folder_name = datetime.fromtimestamp(creation_time).strftime('%Y-%m-%d')
+                # Pule pastas que já seguem o formato especificado (ano -> mês)
+                if root.count(os.sep) - source_directory.count(os.sep) == 2:
+                    try:
+                        int(root.split(os.sep)[-2])  # Ano em formato numérico
+                        datetime.strptime(root.split(os.sep)[-1], '%B')  # Mês por extenso
+                        continue  # Este arquivo já está na pasta correta, pule
+                    except (ValueError, IndexError):
+                        pass
 
-                # Criar um diretório para a data se ele não existir
-                dest_dir = os.path.join(directory, date_folder_name)
-                if not os.path.exists(dest_dir):
-                    os.makedirs(dest_dir)
+                # Use os metadados do arquivo para encontrar a data de modificação
+                mtime = os.path.getmtime(file_path)
+                year = datetime.fromtimestamp(mtime).year
+                month = datetime.fromtimestamp(mtime).month
 
-                # Mover o arquivo para o diretório correspondente
-                shutil.move(file_path, os.path.join(dest_dir, file))
-                print(f"Arquivo {file} movido para: {dest_dir}")
+                # Defina o nome do diretório de destino com o ano e o mês por extenso
+                dest_directory = os.path.join(source_directory, str(year), month_names[month])
 
-# Chama a função para organizar os screenshots
-organize_screenshots(root_dir)
+                # Crie o diretório de destino se ele não existir
+                os.makedirs(dest_directory, exist_ok=True)
+
+                # Mova o arquivo para o diretório de destino
+                shutil.move(file_path, os.path.join(dest_directory, file))
+                print(f'Arquivo {file} movido para: {dest_directory}')
+            except Exception as e:
+                print(f'Erro ao organizar o arquivo {file}: {e}')
+
+# Chama a função
+organize_screenshots(source_directory)
