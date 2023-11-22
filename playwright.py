@@ -106,3 +106,48 @@ if response.status_code == 200:
     print(dados)
 else:
     print(f"Erro na requisição: {response.status_code}")
+
+
+from playwright.sync_api import sync_playwright
+
+def main():
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.goto("https://example.com")
+
+        # Substitua o seletor abaixo com o seletor específico para o script desejado
+        script_element = page.query_selector("seletor_do_script")
+
+        if script_element:
+            script_content = script_element.inner_text()  # ou .inner_html() dependendo do caso
+            print(script_content)
+        else:
+            print("Elemento script não encontrado.")
+
+        browser.close()
+
+if __name__ == "__main__":
+    main()
+
+
+import re
+
+# Aqui está uma simulação de como seria o script que você forneceu como imagem
+script_content = """
+// ... [outro código] ...
+list.setListControlID('algum_valor');
+list.setProperties('H45IAAAAAAAAAIX28XnbSxK...continuação...query string');
+// ... [mais código] ...
+"""
+
+# Expressão regular que procura por 'setProperties' que segue um 'setListControlID'
+pattern = r"setListControlID\('.*?'\);\s*list\.setProperties\('([^']*)'"
+
+# Pesquisar no conteúdo do script
+match = re.search(pattern, script_content, re.DOTALL)
+if match:
+    valor_desejado = match.group(1)
+    print(valor_desejado)
+else:
+    print("Valor não encontrado no script.")
