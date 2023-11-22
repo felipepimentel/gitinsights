@@ -151,3 +151,55 @@ if match:
     print(valor_desejado)
 else:
     print("Valor não encontrado no script.")
+import re
+from playwright.sync_api import sync_playwright
+
+# Inicializar Playwright
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+    
+    # Ir até a página desejada
+    page.goto('https://example.com/determinada_pagina')
+    
+    # Login, se necessário
+    # page.fill('input[name="username"]', 'seu_usuario')
+    # page.fill('input[name="password"]', 'sua_senha')
+    # page.click('button[type="submit"]')
+    # page.wait_for_navigation()
+
+    # Capturar o primeiro request XHR com a query string específica
+    with page.expect_request("**/*list-people*") as first_request_info:
+        page.wait_for_load_state('networkidle')
+    first_request = first_request_info.value
+
+    # Se necessário, interaja com a página aqui para induzir o request XHR
+    
+    # Analisar o HTML e os scripts JavaScript para montar as requests subsequentes
+    # Exemplo para obter o conteúdo do script:
+    script_content = page.content()
+    pattern = r"setListControlID\('.*?'\);\s*list\.setProperties\('([^']*)'"
+    match = re.search(pattern, script_content, re.DOTALL)
+    if match:
+        valor_desejado = match.group(1)
+        print(valor_desejado)
+    
+    # Realizar requests POST para as próximas páginas
+    # Supondo que 'valor_desejado' é parte da informação necessária para a próxima request
+    import requests
+    for page_number in range(2, 100):  # Um número arbitrário para limitar as páginas
+        data = {
+            # Incluir dados necessários para a requisição POST aqui
+            # 'algumCampo': valor_desejado, 'page': page_number, ...
+        }
+        response = requests.post(first_request.url, json=data)
+        if response.status_code == 404:
+            print(f"Página {page_number} não encontrada, terminando a navegação.")
+            break
+        elif response.ok:
+            # Processar a resposta
+            print(f"Dados da página {page_number} recebidos.")
+        else:
+            print(f"Erro na página {page_number}: {response.status_code}")
+
+    browser.close()
