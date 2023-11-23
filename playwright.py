@@ -1,3 +1,38 @@
+import requests
+
+# URL para a qual a requisição será feita
+url = "https://example.com/sc_task_list.do"
+
+# Cabeçalhos da requisição copiados do DevTools
+headers = {
+    "Accept": "*/*",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+    # ... inclua todos os outros cabeçalhos necessários
+    "Content-Type": "application/x-www-form-urlencoded",
+    # Cookies e outros cabeçalhos que possam identificar a sessão
+    "Cookie": "glide_sso=...; glide_session_store=...; JSESSIONID=...",
+    # ... e assim por diante
+}
+
+# Corpo da requisição (payload) que será enviado
+# Suponha que seja um formulário codificado em URL ou JSON
+data = {
+    # ... os dados do formulário
+}
+
+# Enviar a requisição POST
+response = requests.post(url, headers=headers, data=data)
+
+# Verificar a resposta
+if response.ok:
+    print('Requisição bem-sucedida!')
+    print(response.text)  # ou response.json() se a resposta for JSON
+else:
+    print('Erro na requisição:', response.status_code)
+
+
+
 from playwright.sync_api import sync_playwright
 import requests
 
