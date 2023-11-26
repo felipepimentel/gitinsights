@@ -1,0 +1,255 @@
+from sqlalchemy import create_engine, Table, MetaData
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+from pandas import DataFrame
+from typing import List
+
+# Classe base do SQLAlchemy
+Base = declarative_base()
+
+class DatabaseManager:
+    def __init__(self, uri: str):
+        self.engine = create_engine(uri)
+        self.Session = sessionmaker(bind=self.engine)
+        self.metadata = MetaData(bind=self.engine)
+        
+    def create_table_from_df(self, df: DataFrame, table_name: str, primary_key: str) -> Table:
+        # Gera as colunas da tabela com base no DataFrame
+        columns = [Column(name, self.get_sqlalchemy_type(dtype), primary_key=(name == primary_key))
+                   for name, dtype in zip(df.columns, df.dtypes)]
+        
+        # Cria a tabela no banco de dados
+        table = Table(table_name, self.metadata, *columns)
+        self.metadata.create_all(self.engine)
+        return table
+    
+    def get_sqlalchemy_type(self, dtype) -> type:
+        if dtype == 'int64':
+            return Integer
+        elif dtype == 'float64':
+            return Float
+        elif dtype == 'bool':
+            return Boolean
+        else:
+            return String
+    
+    def insert_df(self, df: DataFrame, table: Table, index_elements: List[str] = None):
+        with self.engine.begin() as conn:
+            for _, row in df.iterrows():
+                stmt = insert(table).values(**row.to_dict())
+                if index_elements:
+                    stmt = stmt.on_conflict_do_nothing(index_elements=index_elements)
+                conn.execute(stmt)
+    
+    def query_all(self, table: Table) -> DataFrame:
+        with self.Session() as session:
+            query = session.query(table)
+            df = pd.read_sql(query.statement, self.engine)
+        return df
+    
+# Uso da classe DatabaseManager
+
+# Inicializa o gerenciador de banco de dados
+db_manager = DatabaseManager('postgresql://username:password@localhost:5432/mydatabase')
+
+# Suponha que temos um DataFrame chamado df
+df = DataFrame({
+    'numero': [1, 2, 3],
+    'nome': ['Alice', 'Bob', 'Charlie'],
+    'idade': [25, 30, 35]
+})
+
+# Criar tabela no banco de dados com base no DataFrame
+table = db_manager.create_table_from_df(df, 'minha_tabela_dinamica', primary_key='numero')
+
+# Inserir dados do DataFrame na tabela
+db_manager.insert_df(df, table, index_elements=['numero'])
+
+# Consultar todos os dados da tabela e retornar como um DataFrame
+df_from_db = db_manager.query_all(table)
+
+##
+from sqlalchemy import create_engine, Table, Column, Integer, String, Float, Boolean, MetaData
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.dialects.postgresql import insert
+from pandas import DataFrame
+import pandas as pd
+
+class DatabaseManager:
+    def __init__(self, uri: str):
+        self.engine = create_engine(uri)
+        self.metadata = MetaData(bind=self.engine)
+        self.metadata.reflect(self.engine)
+
+    def create_table_from_df(self, df: DataFrame, table_name: str, primary_key: str) -> Table:
+        if table_name in self.metadata.tables:
+            return self.metadata.tables[table_name]
+        
+        columns = [Column(name, self.get_sqlalchemy_type(dtype), primary_key=(name == primary_key))
+                   for name, dtype in zip(df.columns, df.dtypes)]
+        
+        table = Table(table_name, self.metadata, *columns)
+        try:
+            table.create(self.engine)
+        except ProgrammingError:
+            # Captura o caso onde a tabela já existe, e apenas reflete o schema existente.
+            self.metadata.clear()
+            self.metadata.reflect(self.engine)
+            table = self.metadata.tables[table_name]
+        return table
+
+    def get_sqlalchemy_type(self, dtype) -> type:
+        if dtype == 'int64':
+            return Integer
+        elif dtype == 'float64':
+            return Float
+        elif dtype == 'bool':
+            return Boolean
+        else:
+            return String
+
+    def insert_df(self, df: DataFrame, table: Table, on_conflict: str = None, index_elements: list = None):
+        with self.engine.begin() as conn:
+            for _, row in df.iterrows():
+                insert_stmt = insert(table).values(**row.to_dict())
+                if on_conflict:
+                    if on_conflict == 'do_nothing':
+                        insert_stmt = insert_stmt.on_conflict_do_nothing(index_elements=index_elements)
+                    elif on_conflict == 'update':
+                        insert_stmt = insert_stmt.on_conflict_do_update(
+                            index_elements=index_elements,
+                            set_={c.name: c for c in insert_stmt.excluded}
+                        )
+                conn.execute(insert_stmt)
+
+    def query_all(self, table: Table) -> DataFrame:
+        with self.engine.connect() as conn:
+            query = table.select()
+            result = conn.execute(query)
+            df = pd.DataFrame(result.fetchall(), columns=result.keys())
+        return df
+
+# Exemplo de uso:
+db_manager = DatabaseManager('postgresql://username:password@localhost:5432/mydatabase')
+
+# Suponha que temos um DataFrame chamado df
+df = DataFrame({
+    'numero': [1, 2, 3],
+    'nome': ['Alice', 'Bob', 'Charlie'],
+    'idade': [25, 30, 35]
+})
+
+table = db_manager.create_table_from_df(df, 'minha_tabela_dinamica', primary_key='numero')
+
+# Insert com ação de conflito configurável
+db_manager.insert_df(df, table, on_conflict='do_nothing', index_elements=['numero'])
+
+# Append novos registros com ação de conflito para atualizar os existentes
+new_data = DataFrame({
+    'numero': [3, 4, 5],
+    'nome': ['Dave', 'Eve', 'Faythe'],
+    'idade': [35, 40, 45]
+})
+db_manager.insert_df(new_data, table, on_conflict='update', index_elements=['numero'])
+##
+from playwright.async_api import async_playwright
+
+class ServiceNowNavigator:
+    def __init__(self, headless=True):
+        self.headless = headless
+        self.browser = None
+        self.page = None
+
+    async def start_browser(self):
+        playwright = await async_playwright().start()
+        self.browser = await playwright.chromium.launch(headless=self.headless)
+        self.page = await self.browser.new_page()
+
+    async def login(self, url, username, password):
+        await self.page.goto(url)
+        await self.page.fill('input[id="user_name"]', username)
+        await self.page.fill('input[id="user_password"]', password)
+        await self.page.click('button[id="sysverb_login"]')
+        await self.page.wait_for_load_state('networkidle')
+
+    async def navigate_to(self, url):
+        await self.page.goto(url)
+        await self.page.wait_for_load_state('networkidle')
+
+    async def close_browser(self):
+        await self.browser.close()
+
+    # Aqui você adicionaria métodos mais específicos para interagir com a página.
+##
+import asyncio
+
+async def main():
+    # Inicializa o navegador
+    navigator = ServiceNowNavigator(headless=False)
+    await navigator.start_browser()
+
+    # Faz login no ServiceNow
+    await navigator.login('https://your_instance.service-now.com', 'your_username', 'your_password')
+
+    # Navega para uma página específica
+    await navigator.navigate_to('https://your_instance.service-now.com/some_page')
+
+    # Aqui você interagiria com a página e coletaria dados
+
+    # Encerra o navegador
+    await navigator.close_browser()
+
+    # Aqui você usaria DatabaseManager para interagir com o banco de dados
+    # db_manager = DatabaseManager('your_database_uri')
+    # db_manager.insert_df(your_dataframe, your_table)
+
+# Executa a função main
+asyncio.run(main())
+
+##
+from abc import ABC, abstractmethod
+from playwright.async_api import async_playwright
+
+class BaseNavigator(ABC):
+    def __init__(self, headless=True):
+        self.headless = headless
+        self.browser = None
+        self.page = None
+
+    async def start_browser(self):
+        playwright = await async_playwright().start()
+        self.browser = await playwright.chromium.launch(headless=self.headless)
+        self.page = await self.browser.new_page()
+
+    @abstractmethod
+    async def login(self, url, username, password):
+        pass
+
+    async def navigate_to(self, url):
+        await self.page.goto(url)
+        await self.page.wait_for_load_state('networkidle')
+
+    async def close_browser(self):
+        await self.browser.close()
+
+    # Outros métodos comuns podem ser definidos aqui
+
+
+##
+class ServiceNowNavigator(BaseNavigator):
+    async def login(self, url, username, password):
+        await self.page.goto(url)
+        await self.page.fill('input[id="user_name"]', username)
+        await self.page.fill('input[id="user_password"]', password)
+        await self.page.click('button[id="sysverb_login"]')
+        await self.page.wait_for_load_state('networkidle')
+
+    # Métodos específicos para interagir com ServiceNow
+
+##
+class OtherSystemNavigator(BaseNavigator):
+    async def login(self, url, username, password):
+        # Implementação específica para login em outro sistema
+        pass
+
+    # Métodos específicos para interagir com o outro sistema
