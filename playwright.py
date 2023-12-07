@@ -1,39 +1,38 @@
-import pandas as pd
-from bs4 import BeautifulSoup
+def update_line(self, key, pattern):
+    # Get the original value from the dictionary
+    original_value = self.var_dict.get(key, '')
+    if not isinstance(original_value, str):
+        return original_value  # If it's not a string, return as is
 
-def html_form_to_data_frame(content, form_id):
-    soup = BeautifulSoup(content, "html.parser")
-    form = soup.find('form', id=form_id)
-    if not form:
-        raise ValueError(f"Form with id {form_id} not found")
+    # Replace all variables in the value
+    def replace(match):
+        variable_name = match.group(1)
+        # Get the variable value from the dictionary
+        variable_value = self.var_dict.get(variable_name, '')
+        if '$' in variable_value:
+            # If the variable value contains a nested variable, don't replace it yet
+            return match.group(0)
+        return str(variable_value)
     
-    data = []
-    # Extrai todos os elementos de input, textarea e select
-    for element in form.find_all(['input', 'textarea', 'select']):
-        element_id = element.get('id')
-        label = soup.find('label', {'for': element_id})
-        label_text = label.get_text(strip=True) if label else ""
-        
-        # Trata diferentes tipos de elementos de entrada
-        if element.name == 'input':
-            input_type = element.get('type', 'text')
-            if input_type in ['checkbox', 'radio']:
-                value = element.get('checked')
-            else:
-                value = element.get('value')
-        elif element.name == 'textarea':
-            value = element.text
-        elif element.name == 'select':
-            selected_option = element.find('option', selected=True)
-            value = selected_option.get('value') if selected_option else None
-        
-        data.append({"label": label_text, "value": value})
-    
-    df = pd.DataFrame(data)
-    return df
+    updated_value = pattern.sub(replace, original_value)
+    self.var_dict[key] = updated_value  # Update the dictionary with the new value
+    return updated_value
 
-# Exemplo de uso:
-# content = seu_html_aqui
-# form_id = 'seu_form_id_aqui'
-# df = html_form_to_data_frame(content, form_id)
-# print(df)
+def update_variables(self):
+    # Compile the variable pattern
+    pattern = re.compile(r'\$\((\w+)\)')
+
+    # Keep track of whether we made any replacements
+    replacements_made = True
+    while replacements_made:
+        replacements_made = False
+        for key in self.var_dict:
+            updated_value = self.update_line(key, pattern)
+            # If the updated value is different from the original, we made a replacement
+            if updated_value != self.var_dict[key]:
+                replacements_made = True
+
+    # Check if there are unresolved variables
+    for key, value in self.var_dict.items():
+        if isinstance(value, str) and pattern.search(value):
+            raise ValueError(f"Unresolved variable in key '{key}': {value}")
