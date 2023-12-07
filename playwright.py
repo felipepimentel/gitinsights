@@ -1,38 +1,44 @@
-def update_line(self, key, pattern):
-    # Get the original value from the dictionary
-    original_value = self.var_dict.get(key, '')
-    if not isinstance(original_value, str):
-        return original_value  # If it's not a string, return as is
+import yaml
+import re
 
-    # Replace all variables in the value
+# Regex para identificar variáveis no formato $(variavel)
+variable_regex = re.compile(r'\$\((\w+)\)')
+
+# Função para substituir as variáveis
+def replace_variables(yaml_content, variable_values):
+    # Substituir todas as ocorrências das variáveis
     def replace(match):
         variable_name = match.group(1)
-        # Get the variable value from the dictionary
-        variable_value = self.var_dict.get(variable_name, '')
-        if '$' in variable_value:
-            # If the variable value contains a nested variable, don't replace it yet
-            return match.group(0)
-        return str(variable_value)
+        if variable_name in variable_values:
+            return variable_values[variable_name]
+        else:
+            raise ValueError(f"Variable '{variable_name}' not defined.")
+    return variable_regex.sub(replace, yaml_content)
+
+# Função para carregar o YAML e substituir as variáveis
+def load_and_process_yaml(file_path, variable_values):
+    with open(file_path, 'r') as file:
+        yaml_content = file.read()
     
-    updated_value = pattern.sub(replace, original_value)
-    self.var_dict[key] = updated_value  # Update the dictionary with the new value
-    return updated_value
+    # Substituir as variáveis
+    try:
+        processed_content = replace_variables(yaml_content, variable_values)
+        return yaml.safe_load(processed_content)
+    except ValueError as e:
+        print(e)
+        return None
 
-def update_variables(self):
-    # Compile the variable pattern
-    pattern = re.compile(r'\$\((\w+)\)')
+# Caminho para o arquivo YAML
+file_path = 'path/to/your/yaml/file.yaml'
 
-    # Keep track of whether we made any replacements
-    replacements_made = True
-    while replacements_made:
-        replacements_made = False
-        for key in self.var_dict:
-            updated_value = self.update_line(key, pattern)
-            # If the updated value is different from the original, we made a replacement
-            if updated_value != self.var_dict[key]:
-                replacements_made = True
+# Dicionário com os valores das variáveis
+variable_values = {
+    'variavel1': 'valor1',
+    'variavel2': 'valor2',
+    # Adicione suas variáveis e valores aqui
+}
 
-    # Check if there are unresolved variables
-    for key, value in self.var_dict.items():
-        if isinstance(value, str) and pattern.search(value):
-            raise ValueError(f"Unresolved variable in key '{key}': {value}")
+# Processar o YAML
+processed_yaml = load_and_process_yaml(file_path, variable_values)
+if processed_yaml:
+    print(processed_yaml)
