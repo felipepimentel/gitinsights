@@ -11,20 +11,20 @@ async def extract_form_data(page, form_selector):
     
     # Itere por cada elemento para extrair dados
     for element in input_elements:
-        element_tag_name = await page.evaluate('(element) => element.tagName', element)
+        element_tag_name = await page.evaluate('(element) => element.tagName.toLowerCase()', element)
         name_or_id = await page.evaluate('(element) => element.name || element.id', element)
         label = await page.query_selector(f"label[for='{name_or_id}']")
         label_text = await label.inner_text() if label else name_or_id  # Usa o ID ou o nome como backup se a label não existir
         
-        if element_tag_name == 'SELECT':
+        if element_tag_name == 'select':
             value = await page.evaluate('(element) => element.options[element.selectedIndex].value', element)
-        elif element_tag_name == 'INPUT':
-            type_attr = await page.evaluate('(element) => element.type', element)
+        elif element_tag_name == 'input':
+            type_attr = await page.evaluate('(element) => element.type', element).lower()
             if type_attr == 'checkbox' or type_attr == 'radio':
                 value = await page.evaluate('(element) => element.checked', element)
             else:
                 value = await page.evaluate('(element) => element.value', element)
-        elif element_tag_name == 'TEXTAREA':
+        elif element_tag_name == 'textarea':
             value = await page.evaluate('(element) => element.value', element)
         else:
             continue  # Pule elementos que não são reconhecidos
