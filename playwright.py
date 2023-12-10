@@ -3,62 +3,40 @@ from playwright.async_api import async_playwright
 import pandas as pd
 
 async def extract_form_data(page, form_selector):
-    # Esperar pelo carregamento completo da página
-    await page.wait_for_load_state('networkidle')
-
-    # Obter todos os elementos de entrada do formulário
+    # Select all input elements within the form
     input_elements = await page.query_selector_all(f'{form_selector} input')
-    select_elements = await page.query_selector_all(f'{form_selector} select')
-    textarea_elements = await page.query_selector_all(f'{form_selector} textarea')
-
-    # Dicionário para armazenar os dados do formulário
-    form_data = {}
-
-    # Extrair dados dos inputs
-    for element in input_elements:
-        element_type = await element.get_attribute('type')
-        element_name = await element.get_attribute('name') or await element.get_attribute('id')
-        if element_type == 'checkbox' or element_type == 'radio':
-            value = await element.is_checked()
-        else:
-            value = await element.input_value()
-        form_data[element_name] = value
-
-    # Extrair dados dos selects
-    for element in select_elements:
-        element_name = await element.get_attribute('name') or await element.get_attribute('id')
-        value = await element.input_value()
-        form_data[element_name] = value
-
-    # Extrair dados dos textareas
-    for element in textarea_elements:
-        element_name = await element.get_attribute('name') or await element.get_attribute('id')
-        value = await element.input_value()
-        form_data[element_name] = value
-
-    # Converter para DataFrame
-    df = pd.DataFrame([form_data])
-
+    
+    form_data = []
+    
+    # Iterate through each input element to extract data
+    for input_element in input_elements:
+        # Depending on the structure of your form you might need to adjust the selectors
+        label = await page.evaluate(f'(element) => document.querySelector(`label[for="${element.getAttribute("id")}"]`).innerText', input_element)
+        value = await page.evaluate('(element) => element.value', input_element)
+        
+        form_data.append({"label": label, "value": value})
+    
+    # Convert the list of dictionaries to a DataFrame
+    df = pd.DataFrame(form_data)
     return df
 
 async def main():
-    # Inicializar o Playwright e abrir uma nova página
     async with async_playwright() as p:
+        # Launch the browser and open a new page
         browser = await p.chromium.launch()
         page = await browser.new_page()
-        
-        # Navegar até a página com o formulário
-        await page.goto('URL_DO_SEU_FORMULÁRIO')
 
-        # Extrair os dados do formulário
-        form_selector = 'SELETOR_DO_SEU_FORMULÁRIO'  # Substitua com o seletor CSS correto
-        df = await extract_form_data(page, form_selector)
-        
-        # Imprimir os dados do formulário
-        print(df)
+        # Navigate to the page with your form
+        await page.goto('your_form_url')
 
-        # Fechar o navegador
+        # Extract the form data
+        data_frame = await extract_form_data(page, 'form_selector_here')  # Replace 'form_selector_here' with your actual form selector
+
+        # Do something with the data_frame, e.g., print it or save it to a file
+        print(data_frame)
+
+        # Close the browser
         await browser.close()
 
-# Executar o script
+# Run the main function
 asyncio.run(main())
